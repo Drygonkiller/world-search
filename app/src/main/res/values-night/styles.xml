@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.WordSearch" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#111B16</item>
+        <item name="android:colorAccent">#A1DAC1</item>
+    </style>
+</resources>

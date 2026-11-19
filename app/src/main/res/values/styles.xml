@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Word Search - Puzzle Games</string>
+    <style name="Theme.WordSearch" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#F5F7F1</item>
+        <item name="android:colorAccent">#28634F</item>
+    </style>
+</resources>
