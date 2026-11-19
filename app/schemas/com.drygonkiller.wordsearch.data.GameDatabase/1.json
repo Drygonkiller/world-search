@@ -1,0 +1,211 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "89458cad0358b2c5892566fe6861951f",
+    "entities": [
+      {
+        "tableName": "active_puzzle",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`slot` INTEGER NOT NULL, `id` TEXT NOT NULL, `category` TEXT NOT NULL, `difficulty` TEXT NOT NULL, `seed` INTEGER NOT NULL, `dailyDate` TEXT, `foundPaths` TEXT NOT NULL, `freeHintUsed` INTEGER NOT NULL, `hint` TEXT, `elapsedMillis` INTEGER NOT NULL, PRIMARY KEY(`slot`))",
+        "fields": [
+          {
+            "fieldPath": "slot",
+            "columnName": "slot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seed",
+            "columnName": "seed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyDate",
+            "columnName": "dailyDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "foundPaths",
+            "columnName": "foundPaths",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "freeHintUsed",
+            "columnName": "freeHintUsed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hint",
+            "columnName": "hint",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "elapsedMillis",
+            "columnName": "elapsedMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "slot"
+          ]
+        }
+      },
+      {
+        "tableName": "completed_puzzle",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `dailyDate` TEXT, `category` TEXT NOT NULL, `difficulty` TEXT NOT NULL, `wordCount` INTEGER NOT NULL, `elapsedMillis` INTEGER NOT NULL, `coinsAwarded` INTEGER NOT NULL, `completedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyDate",
+            "columnName": "dailyDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wordCount",
+            "columnName": "wordCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elapsedMillis",
+            "columnName": "elapsedMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coinsAwarded",
+            "columnName": "coinsAwarded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtMillis",
+            "columnName": "completedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_completed_puzzle_dailyDate",
+            "unique": true,
+            "columnNames": [
+              "dailyDate"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_completed_puzzle_dailyDate` ON `${TABLE_NAME}` (`dailyDate`)"
+          }
+        ]
+      },
+      {
+        "tableName": "player_profile",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `completedCount` INTEGER NOT NULL, `wordsFound` INTEGER NOT NULL, `coins` INTEGER NOT NULL, `currentStreak` INTEGER NOT NULL, `bestStreak` INTEGER NOT NULL, `lastDailyDate` TEXT, `lastInterstitialMillis` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedCount",
+            "columnName": "completedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "wordsFound",
+            "columnName": "wordsFound",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coins",
+            "columnName": "coins",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentStreak",
+            "columnName": "currentStreak",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bestStreak",
+            "columnName": "bestStreak",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastDailyDate",
+            "columnName": "lastDailyDate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastInterstitialMillis",
+            "columnName": "lastInterstitialMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '89458cad0358b2c5892566fe6861951f')"
+    ]
+  }
+}
