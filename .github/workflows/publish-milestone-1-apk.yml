@@ -1,0 +1,41 @@
+name: Publish the Milestone 1 debug APK
+
+on:
+  push:
+    branches: [publish-milestone-1-apk]
+    paths: [.github/workflows/publish-milestone-1-apk.yml]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify and publish the existing APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: 652f2dc4709a2737cdf081dee06942a6c0aaf10f
+          SOURCE_RUN_ID: '44513069688'
+          RELEASE_TAG: word-search-v1.0.0-m1
+          APK_NAME: Word_Search_M1_Debug.apk
+        shell: bash
+        run: |
+          gh run download "$SOURCE_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name android-milestone-1 --dir verified-build
+          cp verified-build/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          printf '%s  %s\n' \
+            7cef4058f800da61a7099a46d24231d5b96a37e57929cbb123e1de1249848cf0 "$APK_NAME" \
+            | sha256sum --check
+
+          cat > release-notes.md <<'NOTES'
+          Debug APK for Android 8.0 or later. This build uses AdMob test ads and is intended for phone testing.
+
+          All seven unit tests passed. The real-phone acceptance test is pending.
+          NOTES
+          gh release create "$RELEASE_TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_COMMIT" --title "Word Search Milestone 1 (Debug APK)" \
+            --notes-file release-notes.md --prerelease
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json url,isPrerelease,assets
