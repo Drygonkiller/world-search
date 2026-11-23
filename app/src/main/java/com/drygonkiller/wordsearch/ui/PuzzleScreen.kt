@@ -123,7 +123,7 @@ fun PuzzleScreen(
             ) {
                 Glyph("play", dimension = 17.dp, color = LocalContentColor.current)
                 Spacer(Modifier.width(5.dp))
-                Text(if (rewardPending) "Opening test ad…" else "Watch ad for a hint")
+                Text(if (rewardPending) "Opening ad…" else "Watch ad for a hint")
             }
             else -> OutlinedButton(onFreeHint, Modifier.fillMaxWidth(), enabled = inputEnabled) {
                 Glyph("hint", dimension = 17.dp, color = LocalContentColor.current)

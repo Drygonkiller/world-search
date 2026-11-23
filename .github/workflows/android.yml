@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Build and run unit tests
-        run: ./gradlew testDebugUnitTest assembleDebug
+        run: ./gradlew testDebugUnitTest assembleDebug assembleRelease
       - name: Verify APK permissions
         shell: bash
         run: |
@@ -27,6 +27,25 @@ jobs:
             | awk -F"'" '/^uses-permission/ {print $2}' | sort -u > actual-permissions.txt
           printf '%s\n' android.permission.ACCESS_NETWORK_STATE android.permission.INTERNET com.google.android.gms.permission.AD_ID > expected-permissions.txt
           diff -u expected-permissions.txt actual-permissions.txt
+      - name: Verify AdMob IDs in both APKs
+        shell: bash
+        run: |
+          aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)"
+          verify_ads() {
+            local apk="$1" app_id="$2" banner="$3" interstitial="$4" rewarded="$5"
+            "$aapt" dump xmltree "$apk" AndroidManifest.xml > ad-manifest.txt
+            "$aapt" dump --values resources "$apk" > ad-resources.txt
+            grep -A1 'android:name.*com.google.android.gms.ads.APPLICATION_ID' ad-manifest.txt | grep -F "$app_id"
+            grep -A1 -E '^ +resource .*:string/admob_banner_id:' ad-resources.txt | grep -F "$banner"
+            grep -A1 -E '^ +resource .*:string/admob_interstitial_id:' ad-resources.txt | grep -F "$interstitial"
+            grep -A1 -E '^ +resource .*:string/admob_rewarded_id:' ad-resources.txt | grep -F "$rewarded"
+          }
+          verify_ads app/build/outputs/apk/debug/app-debug.apk \
+            'ca-app-pub-3940256099942544~3347511713' 'ca-app-pub-3940256099942544/9214589741' \
+            'ca-app-pub-3940256099942544/1033173712' 'ca-app-pub-3940256099942544/5224354917'
+          verify_ads app/build/outputs/apk/release/app-release-unsigned.apk \
+            'ca-app-pub-2899987990324695~3945516141' 'ca-app-pub-2899987990324695/3439083832' \
+            'ca-app-pub-2899987990324695/6816503321' 'ca-app-pub-2899987990324695/3470873423'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

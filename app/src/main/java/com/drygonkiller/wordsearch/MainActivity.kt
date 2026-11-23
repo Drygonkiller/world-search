@@ -9,20 +9,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import com.drygonkiller.wordsearch.ads.TestAds
+import com.drygonkiller.wordsearch.ads.AdMobAds
 import com.drygonkiller.wordsearch.data.Setting
 import com.drygonkiller.wordsearch.ui.WordSearchApp
 
 class MainActivity : ComponentActivity() {
     private val model: GameViewModel by viewModels()
-    private lateinit var ads: TestAds
+    private lateinit var ads: AdMobAds
     private var tone: ToneGenerator? = null
     private var inForeground = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        ads = TestAds(this)
+        ads = AdMobAds(this)
         setContent { WordSearchApp(this, model, ads) }
         ads.start()
     }

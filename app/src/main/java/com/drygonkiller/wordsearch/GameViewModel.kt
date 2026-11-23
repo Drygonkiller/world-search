@@ -255,7 +255,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun rewardClosed(sessionId: String, unavailable: Boolean) {
         if (ui.value.session?.id != sessionId) return
         change { copy(rewardPending = false) }
-        if (unavailable) notice("Test ad unavailable. You can keep playing offline.")
+        if (unavailable) notice("Ad unavailable. You can keep playing without a hint.")
         startClock()
     }
 

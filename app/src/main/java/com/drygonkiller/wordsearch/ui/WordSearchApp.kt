@@ -16,9 +16,10 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.drygonkiller.wordsearch.GameViewModel
 import com.drygonkiller.wordsearch.MainActivity
+import com.drygonkiller.wordsearch.R
 import com.drygonkiller.wordsearch.Screen
 import com.drygonkiller.wordsearch.Tab
-import com.drygonkiller.wordsearch.ads.TestAds
+import com.drygonkiller.wordsearch.ads.AdMobAds
 import com.drygonkiller.wordsearch.data.Setting
 import com.drygonkiller.wordsearch.game.shouldShowInterstitial
 import com.google.android.gms.ads.AdRequest
@@ -26,7 +27,7 @@ import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 
 @Composable
-fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: TestAds) {
+fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
     val state by model.ui.collectAsStateWithLifecycle()
     val profile by model.profile.collectAsStateWithLifecycle()
     val counts by model.categoryCounts.collectAsStateWithLifecycle()
@@ -208,7 +209,7 @@ private fun Banner(activity: MainActivity) {
                 factory = { context ->
                     AdView(context).apply {
                         setAdSize(size)
-                        adUnitId = TestAds.BANNER_ID
+                        adUnitId = context.getString(R.string.admob_banner_id)
                         layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                         adListener = object : com.google.android.gms.ads.AdListener() {
                             override fun onAdLoaded() { loaded = true }

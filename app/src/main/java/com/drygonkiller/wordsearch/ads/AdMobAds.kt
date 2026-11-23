@@ -2,6 +2,7 @@ package com.drygonkiller.wordsearch.ads
 
 import android.app.Activity
 import android.os.Build
+import com.drygonkiller.wordsearch.R
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
@@ -17,7 +18,9 @@ import com.google.android.ump.UserMessagingPlatform
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class TestAds(private val activity: Activity) {
+class AdMobAds(private val activity: Activity) {
+    private val interstitialId = activity.getString(R.string.admob_interstitial_id)
+    private val rewardedId = activity.getString(R.string.admob_rewarded_id)
     private val consent = UserMessagingPlatform.getConsentInformation(activity)
     private val mutableReady = MutableStateFlow(false)
     val ready = mutableReady.asStateFlow()
@@ -94,7 +97,7 @@ class TestAds(private val activity: Activity) {
         if (!ready.value || disposed) return
         if (interstitial == null && !interstitialLoading) {
             interstitialLoading = true
-            InterstitialAd.load(activity, INTERSTITIAL_ID, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
+            InterstitialAd.load(activity, interstitialId, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: InterstitialAd) {
                     interstitialLoading = false
                     if (!disposed && ready.value) interstitial = ad
@@ -107,7 +110,7 @@ class TestAds(private val activity: Activity) {
         }
         if (rewarded == null && !rewardedLoading) {
             rewardedLoading = true
-            RewardedAd.load(activity, REWARDED_ID, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
+            RewardedAd.load(activity, rewardedId, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
                     rewardedLoading = false
                     if (!disposed && ready.value) rewarded = ad
@@ -166,9 +169,4 @@ class TestAds(private val activity: Activity) {
     private fun canShow(): Boolean = !disposed && !activity.isFinishing && !activity.isDestroyed &&
         (Build.VERSION.SDK_INT < 29 || activity.hasWindowFocus() || canPresentForm)
 
-    companion object {
-        const val BANNER_ID = "ca-app-pub-3940256099942544/6300978111"
-        private const val INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"
-        private const val REWARDED_ID = "ca-app-pub-3940256099942544/5224354917"
-    }
 }
