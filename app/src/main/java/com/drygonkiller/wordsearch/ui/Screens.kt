@@ -215,7 +215,12 @@ fun DifficultyScreen(
 }
 
 @Composable
-fun StatsScreen(profile: PlayerProfile, modifier: Modifier = Modifier) {
+fun StatsScreen(
+    profile: PlayerProfile,
+    today: LocalDate,
+    dailyDates: Set<String>,
+    modifier: Modifier = Modifier,
+) {
     ScreenColumn(modifier) {
         Text("Stats", style = MaterialTheme.typography.displaySmall)
         Card(
@@ -238,6 +243,7 @@ fun StatsScreen(profile: PlayerProfile, modifier: Modifier = Modifier) {
             Metric("Current streak", days(profile.currentStreak), Modifier.weight(1f))
             Metric("Best streak", days(profile.bestStreak), Modifier.weight(1f))
         }
+        StreakCalendar(today, dailyDates)
     }
 }
 

@@ -12,11 +12,13 @@ import androidx.activity.viewModels
 import com.drygonkiller.wordsearch.ads.AdMobAds
 import com.drygonkiller.wordsearch.data.Setting
 import com.drygonkiller.wordsearch.ui.WordSearchApp
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val model: GameViewModel by viewModels()
     private lateinit var ads: AdMobAds
     private var tone: ToneGenerator? = null
+    private var hintTone: ToneGenerator? = null
     private var inForeground = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +38,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         inForeground = false
+        tone?.stopTone()
+        hintTone?.stopTone()
         model.foregroundChanged(false)
         ads.setConsentPresentationAllowed(false)
         super.onPause()
@@ -48,10 +52,7 @@ class MainActivity : ComponentActivity() {
     fun wordFound() {
         val settings = model.settings.value
         if (settings[Setting.SOUND]) {
-            runCatching {
-                val player = tone ?: ToneGenerator(AudioManager.STREAM_MUSIC, 40).also { tone = it }
-                player.startTone(ToneGenerator.TONE_PROP_ACK, 100)
-            }
+            playGameTone(ToneGenerator.TONE_PROP_ACK, 100)
         }
         if (settings[Setting.VIBRATION]) {
             val feedback = if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM
@@ -60,9 +61,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun hintRevealed() {
+        if (isDestroyed || !model.settings.value[Setting.SOUND]) return
+        runCatching {
+            val player = hintTone ?: ToneGenerator(AudioManager.STREAM_MUSIC, 18).also { hintTone = it }
+            player.startTone(ToneGenerator.TONE_PROP_BEEP, 35)
+        }
+    }
+
+    suspend fun playWinJingle() {
+        if (!inForeground || !model.settings.value[Setting.SOUND]) return
+        // Leave room for the last found-word tone before playing the three-note jingle.
+        delay(100)
+        val notes = listOf(ToneGenerator.TONE_DTMF_1, ToneGenerator.TONE_DTMF_5, ToneGenerator.TONE_DTMF_9)
+        for (note in notes) {
+            if (!inForeground || !model.settings.value[Setting.SOUND]) return
+            playGameTone(note, 95)
+            delay(115)
+        }
+    }
+
+    private fun playGameTone(note: Int, durationMillis: Int) {
+        runCatching {
+            val player = tone ?: ToneGenerator(AudioManager.STREAM_MUSIC, 40).also { tone = it }
+            player.startTone(note, durationMillis)
+        }
+    }
+
     override fun onDestroy() {
         ads.dispose()
         tone?.release()
+        hintTone?.release()
         super.onDestroy()
     }
 }

@@ -75,6 +75,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var clockBaseMillis = 0L
     private var lastCheckpoint = 0L
     private val attemptedInterstitials = mutableSetOf<String>()
+    private var celebratedPuzzleId: String? = null
 
     init {
         viewModelScope.launch {
@@ -232,10 +233,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         return true
     }
 
-    fun useFreeHint() {
+    fun useFreeHint(): Boolean {
         val state = ui.value
-        if (!canPlay(state) || state.session?.freeHintUsed != false) return
-        giveHint(state)
+        if (!canPlay(state) || state.session?.freeHintUsed != false) return false
+        return giveHint(state)
     }
 
     fun beginReward(): String? {
@@ -247,9 +248,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         return session.id
     }
 
-    fun rewardEarned(sessionId: String) {
+    fun rewardEarned(sessionId: String): Boolean {
         val state = ui.value
-        if (state.rewardPending && state.session?.id == sessionId) giveHint(state)
+        return state.rewardPending && state.session?.id == sessionId && giveHint(state)
     }
 
     fun rewardClosed(sessionId: String, unavailable: Boolean) {
@@ -271,6 +272,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun takeInterstitialOpportunity(sessionId: String): Boolean = attemptedInterstitials.add(sessionId)
+
+    fun takeWinSoundOpportunity(puzzleId: String): Boolean {
+        if (celebratedPuzzleId == puzzleId) return false
+        celebratedPuzzleId = puzzleId
+        return true
+    }
 
     fun recordInterstitial(nowMillis: Long) {
         write(action = { store.recordInterstitial(nowMillis) })
@@ -344,18 +351,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun giveHint(state: GameUi) {
-        val session = state.session ?: return
-        val board = state.board ?: return
+    private fun giveHint(state: GameUi): Boolean {
+        val session = state.session ?: return false
+        val board = state.board ?: return false
         val remaining = if (board.words.count { it.word !in session.found } > 1 && session.hint != null) {
             session.found.keys + session.hint
         } else {
             session.found.keys
         }
-        val word = pickHint(board, remaining) ?: return
+        val word = pickHint(board, remaining) ?: return false
         val updated = session.copy(freeHintUsed = true, hint = word.word, elapsedMillis = currentElapsed())
         change { copy(session = updated) }
         persist(updated)
+        return session.hint != updated.hint
     }
 
     private fun canPlay(state: GameUi): Boolean = state.run {

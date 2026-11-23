@@ -57,12 +57,16 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
         // Give the finish composable a frame before an eligible full-screen ad can cover it.
         withFrameNanos { }
         withFrameNanos { }
+        val finishShownAtMillis = System.currentTimeMillis()
+        if (completion.newlyCompleted && model.takeWinSoundOpportunity(session.id)) {
+            activity.playWinJingle()
+        }
         if (model.ui.value.screen == Screen.FINISH && model.ui.value.session?.id == session.id &&
             completion.newlyCompleted && model.takeInterstitialOpportunity(session.id) &&
             shouldShowInterstitial(
                 completion.profile.completedCount,
                 completion.profile.lastInterstitialMillis,
-                System.currentTimeMillis(),
+                finishShownAtMillis,
             )
         ) {
             ads.showInterstitial { model.recordInterstitial(System.currentTimeMillis()) }
@@ -95,7 +99,7 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
                             state.session != null, state.busy, model::homePlay, model::playDaily, content,
                         )
                         Tab.CATEGORIES -> CategoriesScreen(counts, state.busy, model::pickCategory, content)
-                        Tab.STATS -> StatsScreen(profile, content)
+                        Tab.STATS -> StatsScreen(profile, state.today, dailyDates, content)
                         Tab.SETTINGS -> SettingsScreen(
                             settings, privacyRequired, model::setSetting, ads::showPrivacyOptions, content,
                         )
@@ -118,12 +122,16 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
                                 rewardPending = state.rewardPending,
                                 onSelect = { if (model.selectWord(it)) activity.wordFound() },
                                 onPause = model::pause,
-                                onFreeHint = model::useFreeHint,
+                                onFreeHint = { if (model.useFreeHint()) activity.hintRevealed() },
                                 onRewardedHint = {
                                     model.beginReward()?.let { id ->
+                                        var revealed = false
                                         ads.showRewarded(
-                                            onEarned = { model.rewardEarned(id) },
-                                            onClosed = { model.rewardClosed(id, it) },
+                                            onEarned = { revealed = model.rewardEarned(id) },
+                                            onClosed = { unavailable ->
+                                                model.rewardClosed(id, unavailable)
+                                                if (revealed) activity.hintRevealed()
+                                            },
                                         )
                                     }
                                 },

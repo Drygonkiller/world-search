@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Build and run unit tests
-        run: ./gradlew testDebugUnitTest assembleDebug assembleRelease
+        run: ./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease
       - name: Verify APK permissions
         shell: bash
         run: |
@@ -46,11 +46,51 @@ jobs:
           verify_ads app/build/outputs/apk/release/app-release-unsigned.apk \
             'ca-app-pub-2899987990324695~3945516141' 'ca-app-pub-2899987990324695/3439083832' \
             'ca-app-pub-2899987990324695/6816503321' 'ca-app-pub-2899987990324695/3470873423'
+      - name: Verify release manifest and bundle size
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+          from zipfile import ZipFile
+
+          manifest_dir = Path("app/build/intermediates/merged_manifests/release")
+          manifests = list(manifest_dir.rglob("AndroidManifest.xml"))
+          assert len(manifests) == 1, f"Expected one release merged manifest, found {manifests}"
+          manifest = ElementTree.parse(manifests[0]).getroot()
+          android = "{http://schemas.android.com/apk/res/android}"
+          permissions = {
+              node.get(android + "name")
+              for node in manifest
+              if node.tag.startswith("uses-permission")
+          }
+          expected = {
+              "android.permission.INTERNET",
+              "android.permission.ACCESS_NETWORK_STATE",
+              "com.google.android.gms.permission.AD_ID",
+          }
+          assert permissions == expected, f"Unexpected release permissions: {sorted(permissions)}"
+          assert manifest.get(android + "versionCode") == "1", "Release versionCode must stay at 1"
+          print("Release permissions:", ", ".join(sorted(permissions)))
+          print("Release versionCode:", manifest.get(android + "versionCode"))
+
+          bundle = Path("app/build/outputs/bundle/release/app-release.aab")
+          size = bundle.stat().st_size
+          assert size < 25_000_000, f"Release bundle exceeds the size target: {size:,} bytes"
+          with ZipFile(bundle) as archive:
+              assert "base/manifest/AndroidManifest.xml" in archive.namelist()
+          print(f"Release AAB size: {size:,} bytes ({size / 1_000_000:.2f} MB)")
+
+          reports = Path("app/build/test-results/testDebugUnitTest").glob("TEST-*.xml")
+          tests = sum(int(ElementTree.parse(report).getroot().attrib["tests"]) for report in reports)
+          print(f"JUnit tests run: {tests}")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-milestone-1
           path: |
             app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/bundle/release/app-release.aab
             app/build/reports/tests/testDebugUnitTest
             app/schemas
