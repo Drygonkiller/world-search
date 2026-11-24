@@ -69,8 +69,7 @@ object WordSearchGenerator {
             if (search(0, candidates, SearchBudget(128))) return finish(board, words, placed, random)
         }
 
-        // Every game difficulty has at most one word per row. This guarantees a layout even
-        // when no initial search budget finds one with a mix of diagonals and overlaps.
+        // At most one word per row gives a guaranteed fallback for smaller word lists.
         if (words.size <= size) {
             words.zip((0 until size).shuffled(random)).forEach { (word, row) ->
                 val left = random.nextInt(size - word.length + 1)

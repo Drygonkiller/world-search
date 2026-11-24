@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,9 +28,13 @@ import com.drygonkiller.wordsearch.data.GameSettings
 import com.drygonkiller.wordsearch.data.PlayerProfile
 import com.drygonkiller.wordsearch.data.PuzzleSession
 import com.drygonkiller.wordsearch.data.Setting
+import com.drygonkiller.wordsearch.game.Achievement
+import com.drygonkiller.wordsearch.game.BoardTheme
 import com.drygonkiller.wordsearch.game.Category
 import com.drygonkiller.wordsearch.game.Difficulty
+import com.drygonkiller.wordsearch.game.achievements
 import com.drygonkiller.wordsearch.game.dailySpec
+import com.drygonkiller.wordsearch.game.masteryStars
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -43,6 +49,7 @@ fun HomeScreen(
     dailyDone: Boolean,
     hasActivePuzzle: Boolean,
     busy: Boolean,
+    heroColor: Color,
     onPlay: () -> Unit,
     onDaily: () -> Unit,
     modifier: Modifier = Modifier,
@@ -52,7 +59,7 @@ fun HomeScreen(
             Text("Word Search", style = MaterialTheme.typography.displaySmall, modifier = Modifier.weight(1f))
             CoinBadge(profile.coins)
         }
-        val panel = Color(0xFF204D3D)
+        val panel = heroColor
         val ink = Color(0xFFF5FAF3)
         Box(Modifier.fillMaxWidth().clip(cardShape).background(panel)) {
             HeroPattern(Modifier.matchParentSize())
@@ -144,7 +151,7 @@ private fun HeroPattern(modifier: Modifier) {
 
 @Composable
 fun CategoriesScreen(
-    counts: Map<String, Int>,
+    counts: Map<Category, Map<Difficulty, Int>>,
     busy: Boolean,
     onCategory: (Category) -> Unit,
     modifier: Modifier = Modifier,
@@ -154,6 +161,13 @@ fun CategoriesScreen(
         Category.entries.chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { category ->
+                    val completed = counts[category].orEmpty()
+                    val stars = masteryStars(
+                        completed.getOrDefault(Difficulty.EASY, 0),
+                        completed.getOrDefault(Difficulty.MEDIUM, 0),
+                        completed.getOrDefault(Difficulty.HARD, 0),
+                        completed.getOrDefault(Difficulty.EXPERT, 0),
+                    )
                     Card(
                         onClick = { onCategory(category) },
                         enabled = !busy,
@@ -166,15 +180,34 @@ fun CategoriesScreen(
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(category.label, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    (counts[category.name] ?: 0).toString() + " completed",
+                                    completed.values.sum().toString() + " completed",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            MasteryRating(stars)
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MasteryRating(stars: Int) {
+    val palette = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = "$stars of 3 mastery stars" },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        repeat(3) { index ->
+            val earned = index < stars
+            Text(
+                text = if (earned) "★" else "☆",
+                color = if (earned) palette.tertiary else palette.outline,
+                style = MaterialTheme.typography.titleMedium,
+            )
         }
     }
 }
@@ -200,7 +233,7 @@ fun DifficultyScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconBadge("grid", warm = difficulty == Difficulty.HARD)
+                    IconBadge("grid", warm = difficulty == Difficulty.HARD || difficulty == Difficulty.EXPERT)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(difficulty.label, style = MaterialTheme.typography.titleMedium)
@@ -219,6 +252,7 @@ fun StatsScreen(
     profile: PlayerProfile,
     today: LocalDate,
     dailyDates: Set<String>,
+    counts: Map<Category, Map<Difficulty, Int>>,
     modifier: Modifier = Modifier,
 ) {
     ScreenColumn(modifier) {
@@ -244,6 +278,46 @@ fun StatsScreen(
             Metric("Best streak", days(profile.bestStreak), Modifier.weight(1f))
         }
         StreakCalendar(today, dailyDates)
+        val perCategory = counts.mapValues { (_, difficulties) -> difficulties.values.sum() }
+        val perDifficulty = Difficulty.entries.associateWith { difficulty ->
+            counts.values.sumOf { it.getOrDefault(difficulty, 0) }
+        }
+        AchievementBadges(achievements(profile, perCategory, perDifficulty, dailyDates.size))
+    }
+}
+
+@Composable
+private fun AchievementBadges(unlocked: Set<Achievement>) {
+    val palette = MaterialTheme.colorScheme
+    Text("Achievements", style = MaterialTheme.typography.headlineSmall)
+    Achievement.entries.forEach { badge ->
+        val earned = badge in unlocked
+        Surface(
+            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+                contentDescription = "${badge.title}, ${if (earned) "unlocked" else "locked"}"
+            },
+            color = if (earned) palette.primaryContainer else palette.surfaceContainer,
+            shape = cardShape,
+        ) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (earned) palette.primary else palette.outlineVariant,
+                    contentColor = if (earned) palette.onPrimary else palette.onSurfaceVariant,
+                ) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        Text(if (earned) "★" else "☆", style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(badge.title, style = MaterialTheme.typography.titleMedium)
+                    if (!earned) {
+                        Text(badge.target, style = MaterialTheme.typography.bodySmall, color = palette.onSurfaceVariant)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -252,6 +326,7 @@ fun SettingsScreen(
     settings: GameSettings,
     privacyRequired: Boolean,
     onToggle: (Setting, Boolean) -> Unit,
+    onBoardTheme: (BoardTheme) -> Unit,
     onPrivacy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -273,6 +348,25 @@ fun SettingsScreen(
                     }
                     Switch(checked = settings[setting], onCheckedChange = null)
                 }
+            }
+        }
+        Card(shape = cardShape, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Column(Modifier.fillMaxWidth().selectableGroup()) {
+                Text("Board theme", Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
+                BoardTheme.entries.forEach { theme ->
+                    val selected = settings.boardTheme == theme
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .selectable(selected, role = Role.RadioButton, onClick = { onBoardTheme(theme) })
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected, onClick = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text(theme.label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
         if (privacyRequired) OutlinedButton(onPrivacy, Modifier.fillMaxWidth()) { Text("Ad privacy options") }
@@ -302,6 +396,10 @@ fun FinishScreen(
             Metric("Time", formatTime(session.elapsedMillis), Modifier.weight(1f))
             Metric("Coins earned", "+" + result.coinsAwarded, Modifier.weight(1f))
         }
+        if (result.chestBonusCoins > 0) {
+            Text("Chest bonus +${result.chestBonusCoins}", style = MaterialTheme.typography.titleMedium)
+        }
+        CoinBadge(result.profile.coins)
         Button(onNext, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = !busy) { Text("Next Puzzle") }
         OutlinedButton(onHome, Modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = !busy) { Text("Home") }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())

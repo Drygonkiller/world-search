@@ -12,6 +12,7 @@ import androidx.activity.viewModels
 import com.drygonkiller.wordsearch.ads.AdMobAds
 import com.drygonkiller.wordsearch.data.Setting
 import com.drygonkiller.wordsearch.ui.WordSearchApp
+import com.google.android.play.core.review.ReviewManagerFactory
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -66,6 +67,22 @@ class MainActivity : ComponentActivity() {
         runCatching {
             val player = hintTone ?: ToneGenerator(AudioManager.STREAM_MUSIC, 18).also { hintTone = it }
             player.startTone(ToneGenerator.TONE_PROP_BEEP, 35)
+        }
+    }
+
+    suspend fun requestReviewAfterFinish(puzzleId: String) {
+        fun stillOnFinish(): Boolean {
+            val state = model.ui.value
+            return inForeground && !isFinishing && !isDestroyed &&
+                state.screen == Screen.FINISH && state.session?.id == puzzleId
+        }
+
+        if (!stillOnFinish() || !model.claimReviewRequest() || !stillOnFinish()) return
+        runCatching {
+            val manager = ReviewManagerFactory.create(this)
+            manager.requestReviewFlow().addOnSuccessListener(this) { reviewInfo ->
+                if (stillOnFinish()) runCatching { manager.launchReviewFlow(this, reviewInfo) }
+            }
         }
     }
 

@@ -20,14 +20,21 @@ Pick a theme and get a fresh letter grid. Look for hidden words across rows, col
 12 categories
 Choose from Animals, Food & Drink, Travel, Sports, Nature, Countries, Jobs, House, School, Movies, Science and Holidays. Browse your favorites or try a different theme each time.
 
-3 difficulties
-Start with six words on an 8 × 8 Easy grid. Try nine words on a 10 × 10 Medium grid, or hunt for twelve words on a 12 × 12 Hard grid.
+4 difficulties, including Expert
+Start with six words on an 8 × 8 Easy grid. Move up to Medium or Hard, or find 15 words on a 14 × 14 Expert grid.
 
 Daily Challenge and streaks
 A new Medium puzzle appears every day. Finish it to earn coins and build a streak. The calendar in Stats marks the days you completed this month.
 
 Hints when you need them
-Use one free hint per puzzle to reveal the first letter of a word you have yet to find. Additional hints are optional and require a rewarded ad and an internet connection.
+Use one free hint per puzzle to reveal a word’s first letter.
+Spend coins on hints — or watch an ad, your choice. Each extra hint costs 50 coins or an optional rewarded ad when online.
+
+Achievements and mastery
+Earn badges for puzzle totals, streaks, and more. Build up to three mastery stars in each category and earn a coin chest every 10 completed puzzles.
+
+Board themes
+Customize your puzzle highlights with Forest, Ocean, or Sunset. All three work in light and dark modes.
 
 Play at your pace
 The timer counts up, and you can hide it in Settings. Pause and resume whenever you like. Find every word without a countdown or time limit. Your game progress is saved on your device.
@@ -46,4 +53,4 @@ Use real app screens on the same portrait device with consistent typography, fra
 | 2 | Thousands of Puzzles — Play Offline | Show the Categories screen with several genuine category cards and their completion counts. |
 | 3 | A New Puzzle Every Day | Show the Daily Challenge card and real streak count on Home. Capture it before solving that day's challenge. |
 | 4 | No Timer Pressure — Play at Your Pace | Turn on Hide timer, then show a puzzle with the word grid and hint button visible. |
-| 5 | Easy, Medium & Hard | Show the difficulty picker with all three grid sizes and word counts visible. |
+| 5 | Easy, Medium & Hard | Show the difficulty picker with all four grid sizes and word counts visible. |

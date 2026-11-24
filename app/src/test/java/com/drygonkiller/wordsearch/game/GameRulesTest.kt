@@ -50,6 +50,16 @@ class GameRulesTest {
     }
 
     @Test
+    fun expertHasFourteenRowsAndFifteenFindableWords() {
+        val category = Category.NATURE
+        val puzzle = makePuzzle(PuzzleSpec(category, Difficulty.EXPERT, 720), wordsFor(category))
+        assertEquals(14, puzzle.size)
+        assertTrue(puzzle.grid.all { it.length == 14 })
+        assertEquals(15, puzzle.words.size)
+        assertTrue(puzzle.words.all { puzzle.wordAt(it.path) == it.word })
+    }
+
+    @Test
     fun dailyPuzzleMatchesDateAndRotatesCategory() {
         val date = LocalDate.of(2026, 11, 19)
         val today = dailySpec(date)

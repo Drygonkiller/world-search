@@ -19,6 +19,8 @@ jobs:
           cache: gradle
       - name: Build and run unit tests
         run: ./gradlew testDebugUnitTest assembleDebug assembleRelease bundleRelease
+      - name: Verify the Room v1 schema is unchanged
+        run: git diff --exit-code -- app/schemas
       - name: Verify APK permissions
         shell: bash
         run: |
@@ -88,7 +90,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: android-milestone-1
+          name: android-milestone-3
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/bundle/release/app-release.aab

@@ -12,8 +12,10 @@ import com.drygonkiller.wordsearch.data.PlayerProfile
 import com.drygonkiller.wordsearch.data.PuzzleSession
 import com.drygonkiller.wordsearch.data.Setting
 import com.drygonkiller.wordsearch.data.SettingsStore
+import com.drygonkiller.wordsearch.game.BoardTheme
 import com.drygonkiller.wordsearch.game.Category
 import com.drygonkiller.wordsearch.game.Difficulty
+import com.drygonkiller.wordsearch.game.HINT_COST_COINS
 import com.drygonkiller.wordsearch.game.Puzzle
 import com.drygonkiller.wordsearch.game.PuzzleSpec
 import com.drygonkiller.wordsearch.game.WordPath
@@ -66,7 +68,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val mutableElapsed = MutableStateFlow(0L)
     val elapsed = mutableElapsed.asStateFlow()
     val profile = store.profile.stateIn(viewModelScope, SharingStarted.Eagerly, PlayerProfile())
-    val categoryCounts = store.categoryCounts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    val completionCounts = store.completionCounts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val dailyDates = store.dailyDates.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
     val settings = settingsStore.settings.stateIn(viewModelScope, SharingStarted.Eagerly, GameSettings())
 
@@ -239,6 +241,35 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         return giveHint(state)
     }
 
+    fun buyHint(onRevealed: () -> Unit) {
+        val state = ui.value
+        val session = state.session ?: return
+        val board = state.board ?: return
+        if (!canPlay(state) || !session.freeHintUsed || profile.value.coins < HINT_COST_COINS) return
+        val word = chooseHintWord(session, board)?.takeUnless { it == session.hint }
+        if (word == null) {
+            notice("The remaining word is already highlighted.")
+            return
+        }
+
+        freezeClock()
+        change { copy(busy = true) }
+        write(
+            action = {
+                val updated = store.purchaseHint(session.id, word, currentElapsed())
+                change { copy(session = updated ?: this.session, busy = false) }
+                startClock()
+                if (updated == null) notice("Couldn't spend coins for this hint.")
+                else onRevealed()
+            },
+            onFailure = {
+                change { copy(busy = false) }
+                startClock()
+                notice("Couldn't buy the hint. Try again.")
+            },
+        )
+    }
+
     fun beginReward(): String? {
         val state = ui.value
         val session = state.session ?: return null
@@ -260,15 +291,26 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         startClock()
     }
 
-    fun setSetting(setting: Setting, enabled: Boolean) {
+    fun setSetting(setting: Setting, enabled: Boolean) = saveSetting { settingsStore.set(setting, enabled) }
+
+    fun setBoardTheme(theme: BoardTheme) = saveSetting { settingsStore.setBoardTheme(theme) }
+
+    private fun saveSetting(save: suspend () -> Unit) {
         viewModelScope.launch {
             try {
-                settingsStore.set(setting, enabled)
+                save()
             } catch (failure: Exception) {
                 if (failure is CancellationException) throw failure
                 notice("Couldn't save this setting.")
             }
         }
+    }
+
+    suspend fun claimReviewRequest(): Boolean = try {
+        settingsStore.claimReviewRequest()
+    } catch (failure: Exception) {
+        if (failure is CancellationException) throw failure
+        false
     }
 
     fun takeInterstitialOpportunity(sessionId: String): Boolean = attemptedInterstitials.add(sessionId)
@@ -354,16 +396,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun giveHint(state: GameUi): Boolean {
         val session = state.session ?: return false
         val board = state.board ?: return false
+        val word = chooseHintWord(session, board) ?: return false
+        val updated = session.copy(freeHintUsed = true, hint = word, elapsedMillis = currentElapsed())
+        change { copy(session = updated) }
+        persist(updated)
+        return session.hint != updated.hint
+    }
+
+    private fun chooseHintWord(session: PuzzleSession, board: Puzzle): String? {
         val remaining = if (board.words.count { it.word !in session.found } > 1 && session.hint != null) {
             session.found.keys + session.hint
         } else {
             session.found.keys
         }
-        val word = pickHint(board, remaining) ?: return false
-        val updated = session.copy(freeHintUsed = true, hint = word.word, elapsedMillis = currentElapsed())
-        change { copy(session = updated) }
-        persist(updated)
-        return session.hint != updated.hint
+        return pickHint(board, remaining)?.word
     }
 
     private fun canPlay(state: GameUi): Boolean = state.run {

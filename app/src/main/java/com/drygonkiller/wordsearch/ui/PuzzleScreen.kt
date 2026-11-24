@@ -24,7 +24,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drygonkiller.wordsearch.data.PuzzleSession
+import com.drygonkiller.wordsearch.game.BoardPalette
 import com.drygonkiller.wordsearch.game.Cell
+import com.drygonkiller.wordsearch.game.HINT_COST_COINS
 import com.drygonkiller.wordsearch.game.Puzzle
 import com.drygonkiller.wordsearch.game.WordPath
 import kotlin.math.PI
@@ -41,9 +43,12 @@ fun PuzzleScreen(
     inputEnabled: Boolean,
     busy: Boolean,
     rewardPending: Boolean,
+    coins: Int,
+    boardColors: BoardPalette,
     onSelect: (WordPath) -> Unit,
     onPause: () -> Unit,
     onFreeHint: () -> Unit,
+    onCoinHint: () -> Unit,
     onRewardedHint: () -> Unit,
     onRetrySave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -83,7 +88,7 @@ fun PuzzleScreen(
 
         val hintStart = board.words.firstOrNull { it.word == session.hint }?.path?.start
         val foundTracks = session.found.values.toList()
-        LetterGrid(board, foundTracks, hintStart, inputEnabled && !solved, onSelect)
+        LetterGrid(board, foundTracks, hintStart, boardColors, inputEnabled && !solved, onSelect)
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Find the words", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -102,7 +107,7 @@ fun PuzzleScreen(
             board.words.forEach { word ->
                 val foundIndex = orderedWords.indexOf(word.word)
                 val isFound = foundIndex >= 0
-                val color = if (isFound) trackColor(foundIndex, palette).copy(alpha = 0.28f) else palette.surface
+                val color = if (isFound) boardColors.trackColor(foundIndex).copy(alpha = 0.28f) else palette.surface
                 Surface(color = color, shape = RoundedCornerShape(9.dp)) {
                     Text(
                         word.word,
@@ -118,12 +123,25 @@ fun PuzzleScreen(
         when {
             solved && busy -> LinearProgressIndicator(Modifier.fillMaxWidth())
             solved -> OutlinedButton(onRetrySave, Modifier.fillMaxWidth()) { Text("Retry save") }
-            session.freeHintUsed -> OutlinedButton(
-                onRewardedHint, Modifier.fillMaxWidth(), enabled = inputEnabled && !rewardPending,
+            session.freeHintUsed -> Column(
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Glyph("play", dimension = 17.dp, color = LocalContentColor.current)
-                Spacer(Modifier.width(5.dp))
-                Text(if (rewardPending) "Opening ad…" else "Watch ad for a hint")
+                Text("Balance: $coins coins", style = MaterialTheme.typography.labelLarge, color = palette.onSurfaceVariant)
+                OutlinedButton(
+                    onCoinHint, Modifier.fillMaxWidth(), enabled = inputEnabled && coins >= HINT_COST_COINS,
+                ) {
+                    Glyph("coin", dimension = 17.dp, color = LocalContentColor.current)
+                    Spacer(Modifier.width(5.dp))
+                    Text("Hint — $HINT_COST_COINS coins")
+                }
+                OutlinedButton(
+                    onRewardedHint, Modifier.fillMaxWidth(), enabled = inputEnabled && !rewardPending,
+                ) {
+                    Glyph("play", dimension = 17.dp, color = LocalContentColor.current)
+                    Spacer(Modifier.width(5.dp))
+                    Text(if (rewardPending) "Opening ad…" else "Watch ad for a hint")
+                }
             }
             else -> OutlinedButton(onFreeHint, Modifier.fillMaxWidth(), enabled = inputEnabled) {
                 Glyph("hint", dimension = 17.dp, color = LocalContentColor.current)
@@ -139,6 +157,7 @@ private fun LetterGrid(
     board: Puzzle,
     foundTracks: List<WordPath>,
     hint: Cell?,
+    boardColors: BoardPalette,
     inputEnabled: Boolean,
     onSelect: (WordPath) -> Unit,
 ) {
@@ -196,8 +215,8 @@ private fun LetterGrid(
                 drawLine(palette.outlineVariant.copy(alpha = 0.48f), Offset(x, 0f), Offset(x, size.height))
                 drawLine(palette.outlineVariant.copy(alpha = 0.48f), Offset(0f, x), Offset(size.width, x))
             }
-            foundTracks.forEachIndexed { index, path -> line(path, trackColor(index, palette).copy(alpha = 0.43f)) }
-            hint?.let { drawCircle(palette.tertiaryContainer, unit * 0.40f, center(it)) }
+            foundTracks.forEachIndexed { index, path -> line(path, boardColors.trackColor(index).copy(alpha = 0.43f)) }
+            hint?.let { drawCircle(Color(boardColors.hintColor), unit * 0.40f, center(it)) }
             selection?.let { line(it, palette.primary.copy(alpha = 0.34f)) }
         }
         Column(Modifier.fillMaxSize()) {
@@ -239,9 +258,4 @@ private fun snappedCell(position: Offset, start: Cell, cellSize: Float, size: In
     return Cell(start.row + steps * row, start.column + steps * column)
 }
 
-private fun trackColor(index: Int, palette: ColorScheme): Color = when (index % 4) {
-    0 -> palette.primary
-    1 -> Color(0xFFB98B43)
-    2 -> Color(0xFF6A91B1)
-    else -> Color(0xFFB486AD)
-}
+private fun BoardPalette.trackColor(index: Int): Color = Color(tracks[index % tracks.size])

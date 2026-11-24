@@ -26,6 +26,9 @@ android {
             resValue("string", "admob_rewarded_id", "ca-app-pub-3940256099942544/5224354917")
         }
         getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             manifestPlaceholders["adMobAppId"] = "ca-app-pub-2899987990324695~3945516141"
             resValue("string", "admob_banner_id", "ca-app-pub-2899987990324695/3439083832")
             resValue("string", "admob_interstitial_id", "ca-app-pub-2899987990324695/6816503321")
@@ -61,6 +64,8 @@ dependencies {
 
     implementation("com.google.android.gms:play-services-ads:24.7.0")
     implementation("com.google.android.ump:user-messaging-platform:3.2.0")
+    implementation("com.google.android.play:review:2.0.2")
+    implementation("com.google.android.play:review-ktx:2.0.2")
 
     testImplementation("junit:junit:4.13.2")
 }

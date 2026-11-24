@@ -21,6 +21,8 @@ import com.drygonkiller.wordsearch.Screen
 import com.drygonkiller.wordsearch.Tab
 import com.drygonkiller.wordsearch.ads.AdMobAds
 import com.drygonkiller.wordsearch.data.Setting
+import com.drygonkiller.wordsearch.game.boardPalette
+import com.drygonkiller.wordsearch.game.isReviewMilestone
 import com.drygonkiller.wordsearch.game.shouldShowInterstitial
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
@@ -30,13 +32,14 @@ import com.google.android.gms.ads.AdView
 fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
     val state by model.ui.collectAsStateWithLifecycle()
     val profile by model.profile.collectAsStateWithLifecycle()
-    val counts by model.categoryCounts.collectAsStateWithLifecycle()
+    val counts by model.completionCounts.collectAsStateWithLifecycle()
     val dailyDates by model.dailyDates.collectAsStateWithLifecycle()
     val settings by model.settings.collectAsStateWithLifecycle()
     val adsReady by ads.ready.collectAsStateWithLifecycle()
     val privacyRequired by ads.privacyRequired.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val dark = settings[Setting.DARK_MODE]
+    val boardColors = remember(settings.boardTheme, dark) { boardPalette(settings.boardTheme, dark) }
     val view = LocalView.current
 
     SideEffect {
@@ -71,6 +74,9 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
         ) {
             ads.showInterstitial { model.recordInterstitial(System.currentTimeMillis()) }
         }
+        if (isReviewMilestone(completion.profile.completedCount, completion.newlyCompleted, session.spec.dailyDate != null)) {
+            activity.requestReviewAfterFinish(session.id)
+        }
     }
 
     BackHandler(enabled = state.screen != Screen.MAIN || state.tab != Tab.HOME) { model.back() }
@@ -96,12 +102,14 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
                     Screen.MAIN -> when (state.tab) {
                         Tab.HOME -> HomeScreen(
                             profile, state.today, state.today.toString() in dailyDates,
-                            state.session != null, state.busy, model::homePlay, model::playDaily, content,
+                            state.session != null, state.busy, Color(boardColors.heroColor),
+                            model::homePlay, model::playDaily, content,
                         )
                         Tab.CATEGORIES -> CategoriesScreen(counts, state.busy, model::pickCategory, content)
-                        Tab.STATS -> StatsScreen(profile, state.today, dailyDates, content)
+                        Tab.STATS -> StatsScreen(profile, state.today, dailyDates, counts, content)
                         Tab.SETTINGS -> SettingsScreen(
-                            settings, privacyRequired, model::setSetting, ads::showPrivacyOptions, content,
+                            settings, privacyRequired, model::setSetting, model::setBoardTheme,
+                            ads::showPrivacyOptions, content,
                         )
                     }
                     Screen.DIFFICULTY -> state.category?.let {
@@ -120,9 +128,12 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
                                 inputEnabled = !state.busy && !state.paused && !state.rewardPending,
                                 busy = state.busy,
                                 rewardPending = state.rewardPending,
+                                coins = profile.coins,
+                                boardColors = boardColors,
                                 onSelect = { if (model.selectWord(it)) activity.wordFound() },
                                 onPause = model::pause,
                                 onFreeHint = { if (model.useFreeHint()) activity.hintRevealed() },
+                                onCoinHint = { model.buyHint(activity::hintRevealed) },
                                 onRewardedHint = {
                                     model.beginReward()?.let { id ->
                                         var revealed = false

@@ -3,6 +3,7 @@ package com.drygonkiller.wordsearch.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Dao
 import androidx.room.Database
@@ -15,12 +16,15 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
+import com.drygonkiller.wordsearch.game.BoardTheme
 import com.drygonkiller.wordsearch.game.Category
 import com.drygonkiller.wordsearch.game.Cell
 import com.drygonkiller.wordsearch.game.Difficulty
 import com.drygonkiller.wordsearch.game.PuzzleSpec
 import com.drygonkiller.wordsearch.game.Streak
 import com.drygonkiller.wordsearch.game.WordPath
+import com.drygonkiller.wordsearch.game.chestBonus
+import com.drygonkiller.wordsearch.game.spendHintCoins
 import com.drygonkiller.wordsearch.game.updateStreak
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -102,8 +106,14 @@ data class PlayerProfile(
     val lastInterstitialMillis: Long? = null,
 )
 
-data class CategoryCount(val category: String, val count: Int)
-data class Completion(val coinsAwarded: Int, val profile: PlayerProfile, val newlyCompleted: Boolean)
+data class CategoryDifficultyCount(val category: String, val difficulty: String, val count: Int)
+
+data class Completion(
+    val coinsAwarded: Int,
+    val profile: PlayerProfile,
+    val newlyCompleted: Boolean,
+    val chestBonusCoins: Int = 0,
+)
 
 @Dao
 interface GameDao {
@@ -119,8 +129,8 @@ interface GameDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addCompletion(puzzle: CompletedPuzzle): Long
 
-    @Query("SELECT category, COUNT(*) AS count FROM completed_puzzle GROUP BY category")
-    fun observeCategoryCounts(): Flow<List<CategoryCount>>
+    @Query("SELECT category, difficulty, COUNT(*) AS count FROM completed_puzzle GROUP BY category, difficulty")
+    fun observeCompletionCounts(): Flow<List<CategoryDifficultyCount>>
 
     @Query("SELECT dailyDate FROM completed_puzzle WHERE dailyDate IS NOT NULL")
     fun observeDailyDates(): Flow<List<String>>
@@ -152,16 +162,39 @@ abstract class GameDatabase : RoomDatabase() {
 class GameStore(private val database: GameDatabase) {
     private val dao = database.gameDao()
     val profile = dao.observeProfile().map { it ?: PlayerProfile() }
-    val categoryCounts = dao.observeCategoryCounts().map { counts -> counts.associate { it.category to it.count } }
+    val completionCounts = dao.observeCompletionCounts().map { counts ->
+        counts.groupBy(
+            keySelector = { Category.valueOf(it.category) },
+            valueTransform = { Difficulty.valueOf(it.difficulty) to it.count },
+        ).mapValues { (_, countsByDifficulty) -> countsByDifficulty.toMap() }
+    }
     val dailyDates = dao.observeDailyDates().map { it.toSet() }
 
     suspend fun activeSession(): PuzzleSession? = dao.activePuzzle()?.toSession()
     suspend fun save(session: PuzzleSession) = dao.saveActive(session.toEntity())
     suspend fun discard(session: PuzzleSession) = dao.clearActive(session.id)
 
+    suspend fun purchaseHint(sessionId: String, word: String, elapsedMillis: Long): PuzzleSession? =
+        database.withTransaction {
+            val active = dao.activePuzzle()?.toSession() ?: return@withTransaction null
+            if (active.id != sessionId || !active.freeHintUsed || word == active.hint || word in active.found) {
+                return@withTransaction null
+            }
+            val profile = dao.profile() ?: return@withTransaction null
+            val purchase = spendHintCoins(profile.coins, word)
+            val revealedWord = purchase.revealedWord ?: return@withTransaction null
+            val updated = active.copy(hint = revealedWord, elapsedMillis = maxOf(active.elapsedMillis, elapsedMillis))
+            dao.saveProfile(profile.copy(coins = purchase.remainingCoins))
+            dao.saveActive(updated.toEntity())
+            updated
+        }
+
     suspend fun complete(session: PuzzleSession, nowMillis: Long): Completion = database.withTransaction {
         val dailyDate = session.spec.dailyDate
         val reward = if (dailyDate != null) 20 else 10
+        val previous = dao.profile() ?: PlayerProfile()
+        val newCount = previous.completedCount + 1
+        val bonus = chestBonus(newCount, newlyCompleted = true)
         val inserted = dao.addCompletion(
             CompletedPuzzle(
                 id = session.id,
@@ -170,26 +203,25 @@ class GameStore(private val database: GameDatabase) {
                 difficulty = session.spec.difficulty.name,
                 wordCount = session.found.size,
                 elapsedMillis = session.elapsedMillis,
-                coinsAwarded = reward,
+                coinsAwarded = reward + bonus,
                 completedAtMillis = nowMillis,
             ),
         ) != -1L
-        val previous = dao.profile() ?: PlayerProfile()
         dao.clearActive(session.id)
         if (!inserted) return@withTransaction Completion(0, previous, false)
 
         val streak = Streak(previous.currentStreak, previous.bestStreak, previous.lastDailyDate?.let(LocalDate::parse))
         val updated = dailyDate?.let { updateStreak(streak, it) } ?: streak
         val profile = previous.copy(
-            completedCount = previous.completedCount + 1,
+            completedCount = newCount,
             wordsFound = previous.wordsFound + session.found.size,
-            coins = previous.coins + reward,
+            coins = previous.coins + reward + bonus,
             currentStreak = updated.current,
             bestStreak = updated.best,
             lastDailyDate = updated.lastDay?.toString(),
         )
         dao.saveProfile(profile)
-        Completion(reward, profile, true)
+        Completion(reward, profile, true, bonus)
     }
 
     suspend fun recordInterstitial(nowMillis: Long) = database.withTransaction {
@@ -206,7 +238,10 @@ enum class Setting(val label: String, val description: String, val default: Bool
     HIDE_TIMER("Hide timer", "Keep elapsed time off the puzzle screen", false),
 }
 
-data class GameSettings(val values: Map<Setting, Boolean> = emptyMap()) {
+data class GameSettings(
+    val values: Map<Setting, Boolean> = emptyMap(),
+    val boardTheme: BoardTheme = BoardTheme.FOREST,
+) {
     operator fun get(setting: Setting): Boolean = values[setting] ?: setting.default
 }
 
@@ -215,12 +250,33 @@ private val Context.settingsDataStore by preferencesDataStore("settings")
 class SettingsStore(context: Context) {
     private val store = context.settingsDataStore
     private val keys = Setting.entries.associateWith { booleanPreferencesKey(it.name.lowercase()) }
+    private val boardThemeKey = stringPreferencesKey("board_theme")
+    private val reviewRequestedKey = booleanPreferencesKey("review_requested")
 
     val settings = store.data.map { preferences ->
-        GameSettings(Setting.entries.associateWith { preferences[keys.getValue(it)] ?: it.default })
+        GameSettings(
+            values = Setting.entries.associateWith { preferences[keys.getValue(it)] ?: it.default },
+            boardTheme = BoardTheme.entries.firstOrNull { it.name == preferences[boardThemeKey] }
+                ?: BoardTheme.FOREST,
+        )
     }
 
     suspend fun set(setting: Setting, enabled: Boolean) {
         store.edit { it[keys.getValue(setting)] = enabled }
+    }
+
+    suspend fun setBoardTheme(theme: BoardTheme) {
+        store.edit { it[boardThemeKey] = theme.name }
+    }
+
+    suspend fun claimReviewRequest(): Boolean {
+        var claimed = false
+        store.edit { preferences ->
+            if (preferences[reviewRequestedKey] != true) {
+                preferences[reviewRequestedKey] = true
+                claimed = true
+            }
+        }
+        return claimed
     }
 }

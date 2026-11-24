@@ -8,6 +8,7 @@ enum class Difficulty(val label: String, val gridSize: Int, val wordCount: Int) 
     EASY("Easy", 8, 6),
     MEDIUM("Medium", 10, 9),
     HARD("Hard", 12, 12),
+    EXPERT("Expert", 14, 15),
 }
 
 enum class Category(val label: String, val asset: String, val symbol: String) {
