@@ -26,9 +26,12 @@ class AdMobAds(private val activity: Activity) {
     val ready = mutableReady.asStateFlow()
     private val mutablePrivacyRequired = MutableStateFlow(false)
     val privacyRequired = mutablePrivacyRequired.asStateFlow()
+    private val mutableConsentVersion = MutableStateFlow(0)
+    val consentVersion = mutableConsentVersion.asStateFlow()
 
     private var canPresentForm = false
     private var pendingForm = false
+    private var formOpen = false
     private var initializing = false
     private var initialized = false
     private var disposed = false
@@ -57,24 +60,31 @@ class AdMobAds(private val activity: Activity) {
     }
 
     fun showPrivacyOptions() {
-        if (disposed || !canPresentForm) return
-        UserMessagingPlatform.showPrivacyOptionsForm(activity) { updatePermissions() }
+        if (disposed || !canPresentForm || formOpen || !privacyRequired.value || !canShow()) return
+        formOpen = true
+        clearAds()
+        UserMessagingPlatform.showPrivacyOptionsForm(activity) {
+            formOpen = false
+            updatePermissions()
+        }
     }
 
     private fun showPendingForm() {
-        if (!pendingForm || !canPresentForm || !canShow()) return
+        if (!pendingForm || !canPresentForm || formOpen || !canShow()) return
         pendingForm = false
-        UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { updatePermissions() }
+        formOpen = true
+        UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) {
+            formOpen = false
+            updatePermissions()
+        }
     }
 
     private fun updatePermissions() {
         if (disposed) return
         mutablePrivacyRequired.value =
             consent.privacyOptionsRequirementStatus == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
-        if (!consent.canRequestAds()) {
-            mutableReady.value = false
-            interstitial = null
-            rewarded = null
+        if (formOpen || !consent.canRequestAds()) {
+            clearAds()
             return
         }
         if (initialized) {
@@ -95,16 +105,18 @@ class AdMobAds(private val activity: Activity) {
 
     fun preload() {
         if (!ready.value || disposed) return
+        val consentVersionAtLoad = consentVersion.value
         if (interstitial == null && !interstitialLoading) {
             interstitialLoading = true
             InterstitialAd.load(activity, interstitialId, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: InterstitialAd) {
+                    if (disposed || consentVersionAtLoad != consentVersion.value) return
                     interstitialLoading = false
-                    if (!disposed && ready.value) interstitial = ad
+                    if (ready.value) interstitial = ad
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    interstitialLoading = false
+                    if (consentVersionAtLoad == consentVersion.value) interstitialLoading = false
                 }
             })
         }
@@ -112,12 +124,13 @@ class AdMobAds(private val activity: Activity) {
             rewardedLoading = true
             RewardedAd.load(activity, rewardedId, AdRequest.Builder().build(), object : RewardedAdLoadCallback() {
                 override fun onAdLoaded(ad: RewardedAd) {
+                    if (disposed || consentVersionAtLoad != consentVersion.value) return
                     rewardedLoading = false
-                    if (!disposed && ready.value) rewarded = ad
+                    if (ready.value) rewarded = ad
                 }
 
                 override fun onAdFailedToLoad(error: LoadAdError) {
-                    rewardedLoading = false
+                    if (consentVersionAtLoad == consentVersion.value) rewardedLoading = false
                 }
             })
         }
@@ -162,8 +175,16 @@ class AdMobAds(private val activity: Activity) {
 
     fun dispose() {
         disposed = true
+        clearAds()
+    }
+
+    private fun clearAds() {
+        mutableReady.value = false
+        mutableConsentVersion.value += 1
         interstitial = null
         rewarded = null
+        interstitialLoading = false
+        rewardedLoading = false
     }
 
     private fun canShow(): Boolean = !disposed && !activity.isFinishing && !activity.isDestroyed &&
