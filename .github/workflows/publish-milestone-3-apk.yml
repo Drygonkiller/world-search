@@ -1,0 +1,50 @@
+name: Publish the Milestone 3 debug APK
+
+on:
+  push:
+    branches: [publish-milestone-3-apk]
+    paths: [.github/workflows/publish-milestone-3-apk.yml]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify and publish the debug APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: 665d312cc776e7cc6b45eed5a95f014a84888056
+          SOURCE_ARTIFACT_ID: '14905973666'
+          SOURCE_ARCHIVE_SHA256: 926f65a1b4ef3d94f7157e05678ae4a88c382b985e4c5f9e8a82776437b8b367
+          RELEASE_TAG: word-search-v1.0.0-m3
+          APK_NAME: Word_Search_M3_Debug.apk
+        shell: bash
+        run: |
+          source_commit="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID" --jq '.workflow_run.head_sha')"
+          test "$source_commit" = "$SOURCE_COMMIT"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" > verified-build.zip
+          printf '%s  %s\n' "$SOURCE_ARCHIVE_SHA256" verified-build.zip | sha256sum --check
+          unzip -p verified-build.zip build/outputs/apk/debug/app-debug.apk > "$APK_NAME"
+
+          aapt="$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -n 1)"
+          "$aapt" dump badging "$APK_NAME" > apk-badging.txt
+          grep -F "package: name='com.drygonkiller.wordsearch' versionCode='1'" apk-badging.txt
+          grep -x 'application-debuggable' apk-badging.txt
+          apk_digest="sha256:$(sha256sum "$APK_NAME" | cut -d ' ' -f 1)"
+
+          cat > release-notes.md <<'NOTES'
+          Milestone 3 debug APK for Android 8.0 or later. It adds Expert puzzles, coin hints, chest bonuses, category mastery, achievements, and Forest, Ocean, and Sunset board themes.
+
+          This debug build uses AdMob test ads. All 28 unit tests passed. The real-phone acceptance test is pending.
+          NOTES
+          gh release create "$RELEASE_TAG" "$APK_NAME" --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_COMMIT" --title "Word Search Milestone 3 (Debug APK)" \
+            --notes-file release-notes.md --prerelease
+
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+          uploaded_digest="$(jq -r --arg name "$APK_NAME" '.assets[] | select(.name == $name and .state == "uploaded") | .digest' <<< "$release")"
+          test "$uploaded_digest" = "$apk_digest"
+          jq -r '.assets[].browser_download_url' <<< "$release"
