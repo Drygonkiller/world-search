@@ -1,0 +1,50 @@
+name: Capture Word Search Play Store screenshots
+
+on:
+  push:
+    branches: [capture-m3-play-screenshots]
+    paths: [.github/workflows/capture-play-screenshots.yml, .github/capture-play-screenshots.py]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified Android APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_ARTIFACT_ID: '14905973666'
+          SOURCE_ARCHIVE_SHA256: '926f65a1b4ef3d94f7157e05678ae4a88c382b985e4c5f9e8a82776437b8b367'
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" > verified-build.zip
+          printf '%s  %s\n' "$SOURCE_ARCHIVE_SHA256" verified-build.zip | sha256sum --check
+          unzip -p verified-build.zip build/outputs/apk/debug/app-debug.apk > word-search.apk
+          printf '%s  %s\n' 1c5549ce65b4e4b92a57cdd7aa516dec7ad992d8eb11f232979feb62bde8f8c0 word-search.apk | sha256sum --check
+      - name: Enable Android emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Capture the six phone screens offline
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: adb install word-search.apk && python3 .github/capture-play-screenshots.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: word-search-play-phone-screenshots
+          path: play-phone-screenshots/*.png
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: last-emulator-screen
+          path: capture-last-screen.png
