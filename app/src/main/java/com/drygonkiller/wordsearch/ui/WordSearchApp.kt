@@ -37,6 +37,7 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
     val settings by model.settings.collectAsStateWithLifecycle()
     val adsReady by ads.ready.collectAsStateWithLifecycle()
     val privacyRequired by ads.privacyRequired.collectAsStateWithLifecycle()
+    val adConsentVersion by ads.consentVersion.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val dark = settings[Setting.DARK_MODE]
     val boardColors = remember(settings.boardTheme, dark) { boardPalette(settings.boardTheme, dark) }
@@ -89,7 +90,7 @@ fun WordSearchApp(activity: MainActivity, model: GameViewModel, ads: AdMobAds) {
                 if (state.screen == Screen.MAIN) {
                     Column {
                         if (adsReady && (state.tab == Tab.HOME || state.tab == Tab.CATEGORIES)) {
-                            key(state.tab) { Banner(activity) }
+                            key(state.tab, adConsentVersion) { Banner(activity) }
                         }
                         BottomTabs(state.tab, model::selectTab)
                     }
